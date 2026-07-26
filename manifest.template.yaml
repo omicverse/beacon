@@ -1,0 +1,49 @@
+# Pre-registered gate spec. Copy to runs/<target>/manifest.yaml, fill, commit.
+# READ-ONLY after the Phase 0 commit — thresholds may be tightened only by
+# opening a new run, never widened inside one.
+
+target:
+  package: pymatgen                 # importable name
+  interpreter: /path/to/env/bin/python
+  include: ["pymatgen.core", "pymatgen.analysis"]   # submodule allowlist
+  exclude_private: true
+
+state_model:
+  # anndata | attrs | namespace | filesystem   (see STATE_MODELS.md)
+  adapter: attrs
+  # filesystem only: adapter: {name: filesystem, root: ./work}
+
+fixture:
+  # The single input every probe starts from. Pinned so a probe result is
+  # reproducible; a floating fixture makes "confirmed" unfalsifiable later.
+  path: fixtures/Si_mp-149.cif
+  sha256: ""                        # fill after adding the file
+  make_subject: |
+    from pymatgen.core import Structure
+    def make_subject():
+        return Structure.from_file("fixtures/Si_mp-149.cif")
+
+corpus:
+  # Tutorials are the only sanctioned source of prerequisite candidates.
+  tutorials:
+    - docs/source/
+    - examples/
+  prose_docs:
+    - docs/source/introduction.rst
+
+probes:
+  timeout_s: 300
+  repair_rounds_max: 3              # cap is protocol, not preference
+
+gates:
+  coverage_min: 0.95
+  contract_verified_min: 0.60
+  example_runnable_min: 0.80
+  afs_min: 0.55
+  refuted_survivors: 0              # hard zero; never raise
+
+evaluation:
+  static_baseline: docstring_only   # the C = 0.00 comparison
+  behavioural:
+    benchmark: ""                   # third-party; tasks not authored here
+    note: "self-authored tasks on a self-decorated library measure nothing"
