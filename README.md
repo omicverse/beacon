@@ -1,4 +1,4 @@
-# awe-decoratr
+# Beacon
 
 Turn a package's tutorials, documentation, docstrings and source into a
 **verified** agent-readable registry — a complete `@register_function`
@@ -116,6 +116,69 @@ the same protocol applies to libraries with a different shape:
 Adding a library means writing an adapter, not changing the protocol. See
 `STATE_MODELS.md`.
 
+## What the agent actually sees
+
+The point of a registry is what arrives in the agent's context when it asks a
+question in its own words. Below is a real, unedited `registry_lookup` call
+against the decorated `omicverse` — reproduce it with
+`python -c "import omicverse as ov; print(ov.utils.registry_lookup('leiden clustering'))"`.
+
+**Agent turn 1 — the agent does not know the API name and searches by intent:**
+
+```python
+print(ov.utils.registry_lookup("leiden clustering"))
+```
+
+**What comes back:**
+
+```
+Found 10 matching functions:
+  ────────────────────────────────────────────────────────────────────
+  [match 1/10]
+  ov.pp.leiden((adata, resolution=1.0, random_state=<ov.seed-default>,
+                key_added='leiden', local_iterations=100, max_levels=10,
+                device=None, symmetrize=None, **kwargs))
+    Perform Leiden community detection clustering
+    Docstring:
+      leiden clustering
+    Must run first: neighbors
+    Requires: uns['neighbors'], obsp['connectivities']
+    Produces: obs['leiden']
+    Example: ov.pp.leiden(adata, resolution=1.0)
+  ────────────────────────────────────────────────────────────────────
+  [match 2/10]
+  ov.utils.cluster[method=leiden]((adata, method='leiden',
+                                   use_rep='X_pca', random_state=1024, ...))
+    Variant of `omicverse.utils._cluster.cluster` when `method='leiden'`.
+    ...
+```
+
+**Agent turn 2 — the code it now writes:**
+
+```python
+ov.pp.neighbors(adata, use_rep="X_pca")   # ← because of "Must run first"
+ov.pp.leiden(adata, resolution=1.0)
+labels = adata.obs["leiden"]              # ← because of "Produces"
+```
+
+Four things in that block are not in the docstring, and each maps to a
+component of the entry:
+
+| Line in the output | Field | What it prevents |
+|---|---|---|
+| `Must run first: neighbors` | `prerequisites` | calling `leiden` on an `adata` with no graph — the single most common failure mode we measure (`wrong_workflow_order`) |
+| `Requires: uns['neighbors'], obsp['connectivities']` | `requires` | passing the wrong representation, or assuming `X_pca` is enough |
+| `Produces: obs['leiden']` | `produces` | inventing a result key — `adata.obs['clusters']`, `adata.obs['leiden_labels']` |
+| `ov.utils.cluster[method=leiden]` | dispatch entry | missing the second, parameterised way to reach the same algorithm |
+
+The unaided agent has to guess all four. The docstring for this function is
+the two words *"leiden clustering"*.
+
+Every one of those claims was admitted by a probe, not asserted: `produces` by
+observing `obs['leiden']` appear after a real call on a fixture, `requires` by
+deleting the key and confirming the call fails, `prerequisites` by removing
+`neighbors` from the sequence and confirming the same.
+
 ## Quick start
 
 ```bash
@@ -127,7 +190,7 @@ python -m engine.smoke_test               # 30 s readiness check
 cp manifest.template.yaml runs/pymatgen/manifest.yaml
 
 # Phases 1-5, driven by the agent
-#   "Decorate pymatgen. Follow awe-decoratr/PROTOCOL.md."
+#   "Decorate pymatgen. Follow PROTOCOL.md."
 ```
 
 Read `PROTOCOL.md` before starting a run. `manifest.yaml` is committed before
@@ -138,7 +201,7 @@ can be relaxed measures nothing.
 ## Layout
 
 ```
-awe-decoratr/
+beacon/
 ├── README.md                 this file
 ├── PROTOCOL.md               five phases, agent roles, gates, rollback
 ├── STATE_MODELS.md           adapter contract + writing a new one

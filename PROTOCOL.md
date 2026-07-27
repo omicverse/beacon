@@ -185,7 +185,7 @@ independent functions. Budget the worklist by family, not by count.
 ## Invocation
 
 ```
-Decorate <package>. Follow awe-decoratr/PROTOCOL.md.
+Decorate <package>. Follow PROTOCOL.md.
 Work the worklist one function at a time; do not batch.
 ```
 
